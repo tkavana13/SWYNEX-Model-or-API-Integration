@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support Ticket Triage Classifier</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header glass-card">
+            <div class="brand-badge">
+                <div class="brand-icon"><i class="fa-solid fa-headset"></i></div>
+                <div class="brand-text">
+                    <h1>Support Ticket Triage AI</h1>
+                    <span class="sub-title">Classification & Automated Routing Engine</span>
+                </div>
+            </div>
+
+            <nav class="nav-tabs">
+                <button class="nav-btn active" data-tab="single-test">
+                    <i class="fa-solid fa-bolt"></i> Live Classifier
+                </button>
+                <button class="nav-btn" data-tab="batch-test">
+                    <i class="fa-solid fa-list-check"></i> Batch Triage
+                </button>
+                <button class="nav-btn" data-tab="analytics">
+                    <i class="fa-solid fa-chart-pie"></i> Model Analytics
+                </button>
+                <button class="nav-btn" data-tab="retrain">
+                    <i class="fa-solid fa-graduation-cap"></i> Retrain Model
+                </button>
+            </nav>
+
+            <div class="header-status">
+                <span class="status-indicator online"></span>
+                <span class="status-text">Active</span>
+                <span class="badge-f1" id="top-f1-badge">Macro F1: --</span>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <section id="single-test" class="tab-content active">
+                <div class="grid-2col">
+                    <div class="card glass-card input-card">
+                        <div class="card-header">
+                            <h2><i class="fa-solid fa-pen-to-square"></i> Ticket Input</h2>
+                            <span class="badge">Real-Time NLP</span>
+                        </div>
+                        
+                        <div class="preset-pills">
+                            <span class="preset-label">Presets:</span>
+                            <button class="pill-btn" onclick="loadPreset('billing')">💳 Billing</button>
+                            <button class="pill-btn" onclick="loadPreset('tech')">💥 Crash</button>
+                            <button class="pill-btn" onclick="loadPreset('account')">🔒 Account</button>
+                            <button class="pill-btn" onclick="loadPreset('general')">❓ Question</button>
+                            <button class="pill-btn" onclick="loadPreset('urgent')">⚡ API Error</button>
+                        </div>
+
+                        <form id="classify-form" onsubmit="handleSingleSubmit(event)">
+                            <div class="form-group">
+                                <label for="ticket-text">Enter Ticket Text or Customer Query:</label>
+                                <textarea id="ticket-text" rows="5" placeholder="Type or paste support ticket text here..." required></textarea>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" onclick="clearInput()">
+                                    <i class="fa-solid fa-rotate-left"></i> Clear
+                                </button>
+                                <button type="submit" class="btn btn-primary" id="btn-submit">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Classify Ticket
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="card glass-card result-card" id="result-container">
+                        <div class="empty-state" id="empty-state">
+                            <i class="fa-solid fa-compass-drafting empty-icon"></i>
+                            <h3>Awaiting Ticket Input</h3>
+                            <p>Enter text on the left or select a preset to classify category, priority, and routing confidence.</p>
+                        </div>
+
+                        <div class="result-content hidden" id="result-content">
+                            <div class="prediction-header">
+                                <div class="category-meta">
+                                    <span class="label">Predicted Category</span>
+                                    <div class="category-badge-large" id="res-category">
+                                        <i class="fa-solid fa-tag"></i> <span id="res-category-text">Billing</span>
+                                    </div>
+                                </div>
+                                <div class="confidence-gauge">
+                                    <svg viewBox="0 0 36 36" class="circular-chart">
+                                        <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                        <path class="circle" id="confidence-circle" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                        <text x="18" y="20.35" class="percentage" id="res-confidence-pct">0%</text>
+                                    </svg>
+                                    <span class="gauge-label">Confidence</span>
+                                </div>
+                            </div>
+
+                            <div class="probability-section">
+                                <h4 class="section-title"><i class="fa-solid fa-chart-bar"></i> Category Probabilities</h4>
+                                <div class="prob-bars" id="prob-bars-container">
+                                </div>
+                            </div>
+
+                            <div class="triage-details-grid">
+                                <div class="detail-box">
+                                    <span class="box-label">Priority Level</span>
+                                    <span class="priority-badge" id="res-priority">High</span>
+                                </div>
+                                <div class="detail-box">
+                                    <span class="box-label">Assigned Team</span>
+                                    <span class="box-val" id="res-team">Finance Ops</span>
+                                </div>
+                                <div class="detail-box">
+                                    <span class="box-label">Target SLA</span>
+                                    <span class="box-val" id="res-sla">4 Hours</span>
+                                </div>
+                            </div>
+
+                            <div class="auto-response-box">
+                                <div class="response-header">
+                                    <span><i class="fa-solid fa-reply"></i> Suggested Auto Response Draft</span>
+                                    <button class="btn-copy" onclick="copyAutoResponse()">
+                                        <i class="fa-solid fa-copy"></i> Copy
+                                    </button>
+                                </div>
+                                <p class="response-text" id="res-auto-response">--</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card glass-card history-card">
+                    <div class="card-header flex-between">
+                        <h2><i class="fa-solid fa-clock-rotate-left"></i> Session Triage History</h2>
+                        <div class="history-controls">
+                            <div class="filter-group">
+                                <button class="filter-chip active" onclick="filterHistory('All')">All</button>
+                                <button class="filter-chip" onclick="filterHistory('Billing')">Billing</button>
+                                <button class="filter-chip" onclick="filterHistory('Technical')">Technical</button>
+                                <button class="filter-chip" onclick="filterHistory('Account')">Account</button>
+                                <button class="filter-chip" onclick="filterHistory('General')">General</button>
+                            </div>
+                            <button class="btn btn-sm btn-secondary" onclick="exportHistoryCSV()">
+                                <i class="fa-solid fa-download"></i> Export CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="data-table" id="history-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Ticket Snippet</th>
+                                    <th>Category</th>
+                                    <th>Confidence</th>
+                                    <th>Priority</th>
+                                    <th>Routing Team</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-tbody">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">No tickets classified in this session yet.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="batch-test" class="tab-content">
+                <div class="card glass-card">
+                    <div class="card-header">
+                        <h2><i class="fa-solid fa-list-check"></i> Bulk Ticket Classifier</h2>
+                        <span class="badge">Batch Processing</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="batch-text">Paste Multiple Support Tickets (One ticket per line):</label>
+                        <textarea id="batch-text" rows="7" placeholder="I was charged twice for my subscription this month
+The app keeps crashing when I click export to PDF
+I forgot my password and cannot log into my workspace
+What are your customer support working hours?"></textarea>
+                    </div>
+
+                    <div class="form-actions flex-between">
+                        <button class="btn btn-secondary" onclick="loadBatchSample()">
+                            <i class="fa-solid fa-file-import"></i> Load Sample
+                        </button>
+                        <button class="btn btn-primary" onclick="processBatch()">
+                            <i class="fa-solid fa-gears"></i> Classify All
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card glass-card margin-top hidden" id="batch-results-card">
+                    <div class="card-header flex-between">
+                        <h3>Batch Results (<span id="batch-count">0</span> tickets)</h3>
+                        <button class="btn btn-sm btn-secondary" onclick="exportBatchCSV()">
+                            <i class="fa-solid fa-download"></i> Export CSV
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Ticket Text</th>
+                                    <th>Category</th>
+                                    <th>Confidence</th>
+                                    <th>Priority</th>
+                                    <th>Assigned Team</th>
+                                </tr>
+                            </thead>
+                            <tbody id="batch-tbody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="analytics" class="tab-content">
+                <div class="kpi-grid">
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon indigo"><i class="fa-solid fa-bullseye"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Macro F1-Score</span>
+                            <span class="kpi-value" id="kpi-f1">0.00</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon cyan"><i class="fa-solid fa-check-double"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Test Accuracy</span>
+                            <span class="kpi-value" id="kpi-accuracy">0.0%</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon emerald"><i class="fa-solid fa-database"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Dataset Size</span>
+                            <span class="kpi-value" id="kpi-dataset-size">0</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon amber"><i class="fa-solid fa-tags"></i></div>
+                        <div class="kpi-info">
+                            <span class="kpi-label">Classes</span>
+                            <span class="kpi-value">4 Categories</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid-2col margin-top">
+                    <div class="card glass-card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-table-list"></i> Per-Class Breakdown</h3>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Category</th>
+                                        <th>Precision</th>
+                                        <th>Recall</th>
+                                        <th>F1-Score</th>
+                                        <th>Samples</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="metrics-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card glass-card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-border-all"></i> Confusion Matrix</h3>
+                        </div>
+                        <div id="confusion-matrix-container" class="cm-container">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="retrain" class="tab-content">
+                <div class="grid-2col">
+                    <div class="card glass-card">
+                        <div class="card-header">
+                            <h2><i class="fa-solid fa-plus-circle"></i> Add Labeled Sample</h2>
+                        </div>
+                        <p class="text-muted">Expand dataset vocabulary to retrain the model live.</p>
+                        
+                        <form onsubmit="handleRetrainSubmit(event)">
+                            <div class="form-group">
+                                <label for="retrain-text">Support Ticket Text:</label>
+                                <textarea id="retrain-text" rows="4" placeholder="Enter ticket text..." required></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="retrain-category">True Category:</label>
+                                <select id="retrain-category" class="select-control" required>
+                                    <option value="Billing">Billing</option>
+                                    <option value="Technical">Technical</option>
+                                    <option value="Account">Account</option>
+                                    <option value="General">General</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary width-100" id="btn-retrain">
+                                <i class="fa-solid fa-arrows-rotate"></i> Add Sample & Retrain
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="card glass-card">
+                        <div class="card-header flex-between">
+                            <h3><i class="fa-solid fa-folder-open"></i> Dataset Samples</h3>
+                            <span class="badge" id="dataset-count-badge">0 Samples</span>
+                        </div>
+                        <div class="dataset-scroll-list" id="dataset-scroll-list">
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <p>Support Ticket Triage Classifier</p>
+        </footer>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="js/app.js"></script>
+</body>
+</html>
